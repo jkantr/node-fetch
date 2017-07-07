@@ -90,6 +90,25 @@ describe('node-fetch', () => {
 		expect(Request).to.equal(RequestOrig);
 	});
 
+	it('should have explicity enumerable properties on a Request instance', () => {
+		expect(Request.prototype).to.have.all.keys(
+			'method',
+			'url',
+			'headers',
+			'redirect',
+		);
+	});
+
+	it('should have no own properties on a Request instance that are read-only by spec', () => {
+		url = 'http://example.com/';
+		const req = new Request(url);
+		expect(req).to.not.have.ownProperty('method')
+			.and.not.have.ownProperty('url')
+			.and.not.have.ownProperty('headers')
+			.and.not.have.ownProperty('redirect')
+			.and.not.have.ownProperty('body');
+	});
+
 	(supportToString ? it : it.skip)('should support proper toString output for Headers, Response and Request objects', function() {
 		expect(new Headers().toString()).to.equal('[object Headers]');
 		expect(new Response().toString()).to.equal('[object Response]');

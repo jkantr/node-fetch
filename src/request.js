@@ -9,7 +9,10 @@ import { format as format_url, parse as parse_url } from 'url';
 import Headers from './headers.js';
 import Body, { clone, extractContentType, getTotalBytes } from './body';
 
-const PARSED_URL = Symbol('url');
+const HEADERS = Symbol('headers');
+const METHOD = Symbol('method');
+const REDIRECT = Symbol('redirect');
+const URL = Symbol('url');
 
 /**
  * Request class
@@ -18,7 +21,8 @@ const PARSED_URL = Symbol('url');
  * @param   Object  init   Custom options
  * @return  Void
  */
-export default class Request {
+
+export default class Request extends Body {
 	constructor(input, init = {}) {
 		let parsedURL;
 
@@ -51,20 +55,20 @@ export default class Request {
 				clone(input) :
 				null;
 
-		Body.call(this, inputBody, {
+		super(inputBody, {
 			timeout: init.timeout || input.timeout || 0,
 			size: init.size || input.size || 0
 		});
 
 		// fetch spec options
-		this.method = method.toUpperCase();
-		this.redirect = init.redirect || input.redirect || 'follow';
-		this.headers = new Headers(init.headers || input.headers || {});
+		this[METHOD] = method.toUpperCase();
+		this[REDIRECT] = init.redirect || input.redirect || 'follow';
+		this[HEADERS] = new Headers(init.headers || input.headers || {});
 
 		if (init.body != null) {
 			const contentType = extractContentType(this);
-			if (contentType !== null && !this.headers.has('Content-Type')) {
-				this.headers.append('Content-Type', contentType);
+			if (contentType !== null && !this[HEADERS].has('Content-Type')) {
+				this[HEADERS].append('Content-Type', contentType);
 			}
 		}
 
@@ -78,17 +82,34 @@ export default class Request {
 		this.counter = init.counter || input.counter || 0;
 		this.agent = init.agent || input.agent;
 
-		this[PARSED_URL] = parsedURL;
+		this[URL] = parsedURL;
+
 		Object.defineProperty(this, Symbol.toStringTag, {
 			value: 'Request',
-			writable: false,
+			writeable: false,
 			enumerable: false,
 			configurable: true
 		});
 	}
 
+	get headers() {
+		return this[HEADERS];
+	}
+
+	get method() {
+		return this[METHOD];
+	}
+
+	set method(m) {
+		this[METHOD] = m.toUpperCase();
+	}
+
+	get redirect() {
+		return this[REDIRECT];
+	}
+
 	get url() {
-		return format_url(this[PARSED_URL]);
+		return format_url(this[URL]);
 	}
 
 	/**
@@ -101,7 +122,11 @@ export default class Request {
 	}
 }
 
-Body.mixIn(Request.prototype);
+// make getters enumerable as per IDL
+Object.defineProperty(Request.prototype, 'headers', { enumerable: true });
+Object.defineProperty(Request.prototype, 'method', { enumerable: true });
+Object.defineProperty(Request.prototype, 'redirect', { enumerable: true });
+Object.defineProperty(Request.prototype, 'url', { enumerable: true });
 
 Object.defineProperty(Request.prototype, Symbol.toStringTag, {
 	value: 'RequestPrototype',
@@ -111,7 +136,7 @@ Object.defineProperty(Request.prototype, Symbol.toStringTag, {
 });
 
 export function getNodeRequestOptions(request) {
-	const parsedURL = request[PARSED_URL];
+	const parsedURL = request[URL];
 	const headers = new Headers(request.headers);
 
 	// fetch step 3

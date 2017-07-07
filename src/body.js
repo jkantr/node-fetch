@@ -9,6 +9,7 @@ import Stream, {PassThrough} from 'stream';
 import Blob, {BUFFER} from './blob.js';
 import FetchError from './fetch-error.js';
 
+const BODY = Symbol('body');
 const DISTURBED = Symbol('disturbed');
 
 let convert;
@@ -17,44 +18,51 @@ try { convert = require('encoding').convert; } catch(e) {}
 /**
  * Body class
  *
- * Cannot use ES6 class because Body must be called with .call().
  *
  * @param   Stream  body  Readable stream
  * @param   Object  opts  Response options
  * @return  Void
  */
-export default function Body(body, {
-	size = 0,
-	timeout = 0
-} = {}) {
-	if (body == null) {
-		// body is undefined or null
-		body = null;
-	} else if (typeof body === 'string') {
-		// body is string
-	} else if (isURLSearchParams(body)) {
-		// body is a URLSearchParams
-	} else if (body instanceof Blob) {
-		// body is blob
-	} else if (Buffer.isBuffer(body)) {
-		// body is buffer
-	} else if (body instanceof Stream) {
-		// body is stream
-	} else {
-		// none of the above
-		// coerce to string
-		body = String(body);
+export default class Body {
+	constructor(body, {
+		size = 0,
+		timeout = 0
+	} = {}) {
+		if (body == null) {
+			// body is undefined or null
+			body = null;
+		} else if (typeof body === 'string') {
+			// body is string
+		} else if (isURLSearchParams(body)) {
+			// body is a URLSearchParams
+		} else if (body instanceof Blob) {
+			// body is blob
+		} else if (Buffer.isBuffer(body)) {
+			// body is buffer
+		} else if (body instanceof Stream) {
+			// body is stream
+		} else {
+			// none of the above
+			// coerce to string
+			body = String(body);
+		}
+		this[BODY] = body;
+		this[DISTURBED] = false;
+		this.size = size;
+		this.timeout = timeout;
 	}
-	this.body = body;
-	this[DISTURBED] = false;
-	this.size = size;
-	this.timeout = timeout;
-}
 
-Body.prototype = {
+	get body() {
+		return this[BODY];
+	}
+
+	set body(b) {
+		this[BODY] = b;
+	}
+
 	get bodyUsed() {
 		return this[DISTURBED];
-	},
+	}
 
 	/**
 	 * Decode response as ArrayBuffer
@@ -63,7 +71,7 @@ Body.prototype = {
 	 */
 	arrayBuffer() {
 		return consumeBody.call(this).then(buf => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-	},
+	}
 
 	/**
 	 * Return raw response as Blob
@@ -81,7 +89,7 @@ Body.prototype = {
 				[BUFFER]: buf
 			}
 		));
-	},
+	}
 
 	/**
 	 * Decode response as json
@@ -96,7 +104,7 @@ Body.prototype = {
 				return Body.Promise.reject(new FetchError(`invalid json response body at ${this.url} reason: ${err.message}`, 'invalid-json'));
 			}
 		})
-	},
+	}
 
 	/**
 	 * Decode response as text
@@ -105,7 +113,7 @@ Body.prototype = {
 	 */
 	text() {
 		return consumeBody.call(this).then(buffer => buffer.toString());
-	},
+	}
 
 	/**
 	 * Decode response as buffer (non-spec api)
@@ -114,7 +122,7 @@ Body.prototype = {
 	 */
 	buffer() {
 		return consumeBody.call(this);
-	},
+	}
 
 	/**
 	 * Decode response as text, while automatically detecting the encoding and
@@ -124,20 +132,8 @@ Body.prototype = {
 	 */
 	textConverted() {
 		return consumeBody.call(this).then(buffer => convertBody(buffer, this.headers));
-	},
-
-
-};
-
-Body.mixIn = function (proto) {
-	for (const name of Object.getOwnPropertyNames(Body.prototype)) {
-		// istanbul ignore else: future proof
-		if (!(name in proto)) {
-			const desc = Object.getOwnPropertyDescriptor(Body.prototype, name);
-			Object.defineProperty(proto, name, desc);
-		}
 	}
-};
+}
 
 /**
  * Decode buffers into utf-8 string
